@@ -42,11 +42,12 @@ export async function POST(request: Request) {
     });
     const order = lastLesson ? lastLesson.order + 1 : 0;
 
-    // Cria a aula
+    // Cria a aula com o novo campo videoSource
     const lesson = await Lesson.create({
       title: data.title,
       description: data.description,
       videoPublicId: data.videoPublicId,
+      videoSource: data.videoSource || "cloudinary", // Valor padrão para manter compatibilidade
       module: data.moduleId,
       course: module.course,
       order,
@@ -60,6 +61,36 @@ export async function POST(request: Request) {
     return NextResponse.json(lesson);
   } catch (error: any) {
     console.error("Erro ao criar aula:", error);
+    return new NextResponse(
+      JSON.stringify({
+        message: "Erro interno do servidor",
+        error: error?.message,
+      }),
+      { status: 500 }
+    );
+  }
+}
+
+// GET route para listar as aulas
+export async function GET(request: Request) {
+  try {
+    await connectDB();
+    const { searchParams } = new URL(request.url);
+    const moduleId = searchParams.get("moduleId");
+
+    if (!moduleId) {
+      return new NextResponse(
+        JSON.stringify({
+          message: "ID do módulo é obrigatório",
+        }),
+        { status: 400 }
+      );
+    }
+
+    const lessons = await Lesson.find({ module: moduleId }).sort({ order: 1 });
+    return NextResponse.json(lessons);
+  } catch (error: any) {
+    console.error("Erro ao listar aulas:", error);
     return new NextResponse(
       JSON.stringify({
         message: "Erro interno do servidor",

@@ -4,7 +4,9 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { VideoIcon, Loader2 } from "lucide-react";
+import { VideoIcon, Loader2, Youtube } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface CreateLessonFormProps {
   moduleId: string;
@@ -21,19 +23,37 @@ export function CreateLessonForm({
   const [uploadStatus, setUploadStatus] = useState<
     "idle" | "uploading" | "success"
   >("idle");
+  const [videoSource, setVideoSource] = useState<"cloudinary" | "youtube">(
+    "cloudinary"
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (uploadStatus === "uploading") {
-      setError("Aguarde o upload do vídeo ser concluído");
-      return;
-    }
+    if (videoSource === "cloudinary") {
+      if (uploadStatus === "uploading") {
+        setError("Aguarde o upload do vídeo ser concluído");
+        return;
+      }
 
-    if (!videoPublicId) {
-      setError("Faça o upload de um vídeo para a aula");
-      return;
+      if (!videoPublicId) {
+        setError("Faça o upload de um vídeo para a aula");
+        return;
+      }
+    } else {
+      const youtubeId = (
+        e.currentTarget.elements.namedItem("youtubeId") as HTMLInputElement
+      ).value;
+      if (!youtubeId) {
+        setError("Insira o ID do vídeo do YouTube");
+        return;
+      }
+      // Validar formato do ID do YouTube
+      if (!isValidYoutubeId(youtubeId)) {
+        setError("ID do YouTube inválido");
+        return;
+      }
     }
 
     setLoading(true);
@@ -43,7 +63,11 @@ export function CreateLessonForm({
     const data = {
       title: formData.get("title"),
       description: formData.get("description"),
-      videoPublicId: videoPublicId,
+      videoPublicId:
+        videoSource === "cloudinary"
+          ? videoPublicId
+          : formData.get("youtubeId"),
+      videoSource: videoSource,
       moduleId: moduleId,
     };
 
@@ -77,13 +101,11 @@ export function CreateLessonForm({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Verifica o tipo do arquivo
     if (!file.type.includes("video/")) {
       setError("Por favor, selecione um arquivo de vídeo válido");
       return;
     }
 
-    // Verifica o tamanho do arquivo (100MB em bytes)
     if (file.size > 100 * 1024 * 1024) {
       setError("O arquivo é muito grande. O tamanho máximo é 100MB");
       return;
@@ -123,6 +145,11 @@ export function CreateLessonForm({
     }
   };
 
+  const isValidYoutubeId = (id: string) => {
+    // Regex básica para ID do YouTube (11 caracteres)
+    return /^[a-zA-Z0-9_-]{11}$/.test(id);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
@@ -158,49 +185,102 @@ export function CreateLessonForm({
         />
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Vídeo da Aula</label>
-        <div className="flex items-center gap-4">
-          <input
-            type="file"
-            accept="video/*"
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={uploadStatus === "uploading"}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {uploadStatus === "uploading" ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Enviando...
-              </>
-            ) : uploadStatus === "success" ? (
-              <>
-                <VideoIcon className="mr-2 h-4 w-4" />
-                Alterar Vídeo
-              </>
-            ) : (
-              <>
-                <VideoIcon className="mr-2 h-4 w-4" />
-                Selecionar Vídeo
-              </>
-            )}
-          </Button>
-          {uploadStatus === "success" && (
-            <span className="text-sm text-green-600">
-              Vídeo enviado com sucesso!
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          Selecione um vídeo no formato MP4, MOV ou WEBM (máx. 100MB)
-        </p>
+      <div className="space-y-4">
+        <label className="text-sm font-medium">Fonte do Vídeo</label>
+        <RadioGroup
+          defaultValue="cloudinary"
+          onValueChange={(value) =>
+            setVideoSource(value as "cloudinary" | "youtube")
+          }
+          className="flex flex-col space-y-2"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="cloudinary" id="cloudinary" />
+            <Label htmlFor="cloudinary">Upload de Vídeo (Cloudinary)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="youtube" id="youtube" />
+            <Label htmlFor="youtube">YouTube</Label>
+          </div>
+        </RadioGroup>
       </div>
+
+      {videoSource === "cloudinary" ? (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Vídeo da Aula</label>
+          <div className="flex items-center gap-4">
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploadStatus === "uploading"}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploadStatus === "uploading" ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : uploadStatus === "success" ? (
+                <>
+                  <VideoIcon className="mr-2 h-4 w-4" />
+                  Alterar Vídeo
+                </>
+              ) : (
+                <>
+                  <VideoIcon className="mr-2 h-4 w-4" />
+                  Selecionar Vídeo
+                </>
+              )}
+            </Button>
+            {uploadStatus === "success" && (
+              <span className="text-sm text-green-600">
+                Vídeo enviado com sucesso!
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            Selecione um vídeo no formato MP4, MOV ou WEBM (máx. 100MB)
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label htmlFor="youtubeId" className="text-sm font-medium">
+            ID do Vídeo do YouTube
+          </label>
+          <div className="flex items-center gap-4">
+            <Input
+              id="youtubeId"
+              name="youtubeId"
+              required
+              disabled={loading}
+              placeholder="Ex: dQw4w9WgXcQ"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() =>
+                window.open(
+                  "https://support.google.com/youtube/answer/171780",
+                  "_blank"
+                )
+              }
+            >
+              <Youtube className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Cole apenas o ID do vídeo (os 11 caracteres após v= na URL)
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button
@@ -213,3 +293,4 @@ export function CreateLessonForm({
     </form>
   );
 }
+("");

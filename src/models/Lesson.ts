@@ -11,9 +11,13 @@ const lessonSchema = new mongoose.Schema(
       required: true,
     },
     videoPublicId: {
-      // Alterado de videoUrl para videoPublicId
       type: String,
-      required: true, // Tornando obrigatório
+      required: true,
+    },
+    videoSource: {
+      type: String,
+      enum: ["cloudinary", "youtube"],
+      default: "cloudinary",
     },
     order: {
       type: Number,

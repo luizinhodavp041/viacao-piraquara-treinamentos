@@ -1,7 +1,5 @@
 "use client";
 
-import { CldVideoPlayer } from "next-cloudinary";
-import "next-cloudinary/dist/cld-video-player.css";
 import { useEffect, useState, useRef, useCallback } from "react";
 
 interface VideoPlayerProps {
@@ -9,7 +7,7 @@ interface VideoPlayerProps {
   title: string;
   lessonId: string;
   courseId: string;
-  onComplete?: (lessonId: string) => void; // Novo prop
+  onComplete?: (lessonId: string) => void;
 }
 
 export function VideoPlayer({
@@ -19,8 +17,8 @@ export function VideoPlayer({
   courseId,
   onComplete,
 }: VideoPlayerProps) {
-  const [playerKey, setPlayerKey] = useState(0);
   const playerRef = useRef<any>(null);
+  const lastTimeRef = useRef<number>(0);
 
   const handleVideoProgress = useCallback(async () => {
     try {
@@ -36,79 +34,95 @@ export function VideoPlayer({
         }),
       });
 
-      // Chama o callback onComplete após salvar o progresso
       onComplete?.(lessonId);
     } catch (error) {
       console.error("Erro ao salvar progresso:", error);
     }
   }, [lessonId, courseId, onComplete]);
 
-  useEffect(() => {
-    setPlayerKey((prev) => prev + 1);
-  }, [publicId]);
+  const rewindFiveSeconds = useCallback(() => {
+    if (playerRef.current?.getCurrentTime) {
+      const currentTime = playerRef.current.getCurrentTime();
+      const newTime = Math.max(0, currentTime - 5);
+      playerRef.current.seekTo(newTime);
+      lastTimeRef.current = newTime;
+    }
+  }, []);
 
   useEffect(() => {
-    // Função para configurar o player após ele estar pronto
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
     const setupPlayer = () => {
-      const player = playerRef.current;
-      if (player) {
-        // Desabilita interações com a barra de progresso
-        const progressControl = player.getElementsByClassName(
-          "vjs-progress-control"
-        )[0];
-        if (progressControl) {
-          progressControl.style.pointerEvents = "none";
-        }
+      playerRef.current = new window.YT.Player(`youtube-player-${publicId}`, {
+        videoId: publicId,
+        height: "100%",
+        width: "100%",
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+          showinfo: 0,
+          iv_load_policy: 3,
+          enablejsapi: 1,
+        },
+        events: {
+          onStateChange: (event: any) => {
+            if (event.data === window.YT.PlayerState.ENDED) {
+              handleVideoProgress();
+            }
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              const currentTime = event.target.getCurrentTime();
+              if (currentTime > lastTimeRef.current + 0.5) {
+                event.target.seekTo(lastTimeRef.current);
+              } else {
+                lastTimeRef.current = currentTime;
+              }
+            }
+          },
+        },
+      });
+    };
 
-        // Remove botões de retroceder existentes antes de adicionar um novo
-        const existingSkipButtons = player.getElementsByClassName("skip-back");
-        while (existingSkipButtons.length > 0) {
-          existingSkipButtons[0].remove();
-        }
+    if (window.YT) {
+      setupPlayer();
+    } else {
+      window.onYouTubeIframeAPIReady = setupPlayer;
+    }
 
-        // Adiciona botão de retroceder 5 segundos
-        const skipButton = document.createElement("button");
-        skipButton.className = "vjs-control vjs-button skip-back";
-        skipButton.innerHTML = '<span class="vjs-icon-replay-10"></span>';
-        skipButton.onclick = () => {
-          const videoElement = player.getElementsByTagName("video")[0];
-          if (videoElement) {
-            videoElement.currentTime = Math.max(
-              0,
-              videoElement.currentTime - 5
-            );
-          }
-        };
-
-        const controlBar = player.getElementsByClassName("vjs-control-bar")[0];
-        if (controlBar) {
-          const playButton =
-            controlBar.getElementsByClassName("vjs-play-control")[0];
-          if (playButton) {
-            controlBar.insertBefore(skipButton, playButton.nextSibling);
-          }
-        }
-
-        // Adiciona evento para quando o vídeo terminar
-        const videoElement = player.getElementsByTagName("video")[0];
-        if (videoElement) {
-          videoElement.addEventListener("ended", handleVideoProgress);
-        }
+    const setupCustomControls = () => {
+      const container = document.getElementById(
+        `youtube-player-${publicId}`
+      )?.parentElement;
+      if (container) {
+        const rewindButton = document.createElement("button");
+        rewindButton.className = "rewind-button";
+        rewindButton.innerHTML = "↺ 5s";
+        rewindButton.onclick = rewindFiveSeconds;
+        container.appendChild(rewindButton);
       }
     };
 
-    // Adiciona um pequeno delay para garantir que o player foi montado
-    const timeoutId = setTimeout(setupPlayer, 1000);
+    setTimeout(setupCustomControls, 1000);
 
-    // Cleanup function
     return () => {
-      clearTimeout(timeoutId);
-      const videoElement = playerRef.current?.getElementsByTagName("video")[0];
-      if (videoElement) {
-        videoElement.removeEventListener("ended", handleVideoProgress);
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+      const rewindButton = document.querySelector(".rewind-button");
+      if (rewindButton) {
+        rewindButton.remove();
       }
     };
-  }, [playerKey, handleVideoProgress]);
+  }, [publicId, handleVideoProgress, rewindFiveSeconds]);
 
   if (!publicId) {
     return (
@@ -120,97 +134,45 @@ export function VideoPlayer({
 
   return (
     <div className="aspect-video relative rounded-lg overflow-hidden bg-black">
-      <div ref={playerRef}>
-        <CldVideoPlayer
-          key={playerKey}
-          width="1920"
-          height="1080"
-          src={publicId}
-          colors={{
-            base: "#000000",
-            text: "#ffffff",
-            accent: "#4f46e5",
-          }}
-          autoPlay={false}
-          loop={false}
-          controls={true}
-          transformation={{
-            quality: "auto",
-          }}
-        />
-      </div>
+      <div id={`youtube-player-${publicId}`} className="w-full h-full" />
       <style jsx global>{`
-        /* Remove cursor pointer da barra de progresso */
-        .vjs-progress-control .vjs-progress-holder {
-          cursor: default !important;
-        }
-
-        /* Esconde o tooltip de tempo */
-        .vjs-mouse-display {
-          display: none !important;
-        }
-
-        /* Esconde o handle de arraste */
-        .vjs-play-progress:before {
-          display: none !important;
-        }
-
-        /* Esconde controles não desejados */
-        .vjs-playback-rate,
-        .vjs-forward-control,
-        .vjs-picture-in-picture-control {
-          display: none !important;
-        }
-
-        /* Desabilita interações com a barra de progresso */
-        .vjs-progress-control {
-          pointer-events: none !important;
-        }
-
-        /* Estilo para o botão de retroceder */
-        .skip-back {
+        .rewind-button {
+          position: absolute;
+          bottom: 70px;
+          left: 10px;
+          background: rgba(0, 0, 0, 0.7);
+          color: white;
+          border: none;
+          padding: 8px 12px;
+          border-radius: 4px;
           cursor: pointer;
-          font-size: 1.5em;
-          width: 3em;
+          z-index: 1000;
+          font-size: 14px;
+          transition: background 0.2s;
         }
 
-        .skip-back:hover {
-          opacity: 0.7;
+        .rewind-button:hover {
+          background: rgba(0, 0, 0, 0.9);
         }
 
-        /* Ícone do botão de retroceder */
-        .vjs-icon-replay-10:before {
-          content: "↺";
-          font-family: Arial, sans-serif;
+        /* Esconder a timeline do YouTube */
+        .ytp-chrome-bottom {
+          display: none !important;
         }
-
-        /* Mostra o seletor de qualidade */
-        .vjs-quality-selector {
-          display: block !important;
+        .ytp-progress-bar-container {
+          display: none !important;
         }
-
-        /* Ajusta a ordem dos controles */
-        .vjs-control-bar {
-          display: flex;
-          align-items: center;
-        }
-
-        .vjs-remaining-time {
-          order: 1;
-        }
-
-        .vjs-volume-panel {
-          order: 2;
-        }
-
-        .vjs-quality-selector {
-          order: 3;
-        }
-
-        .vjs-fullscreen-control {
-          order: 4;
+        .ytp-time-display {
+          display: none !important;
         }
       `}</style>
     </div>
   );
+}
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
 }
