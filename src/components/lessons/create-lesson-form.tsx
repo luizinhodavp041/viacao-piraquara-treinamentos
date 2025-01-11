@@ -23,9 +23,9 @@ export function CreateLessonForm({
   const [uploadStatus, setUploadStatus] = useState<
     "idle" | "uploading" | "success"
   >("idle");
-  const [videoSource, setVideoSource] = useState<"cloudinary" | "youtube">(
-    "cloudinary"
-  );
+  const [videoSource, setVideoSource] = useState<
+    "cloudinary" | "youtube" | "vimeo"
+  >("cloudinary");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -41,7 +41,7 @@ export function CreateLessonForm({
         setError("Faça o upload de um vídeo para a aula");
         return;
       }
-    } else {
+    } else if (videoSource === "youtube") {
       const youtubeId = (
         e.currentTarget.elements.namedItem("youtubeId") as HTMLInputElement
       ).value;
@@ -49,9 +49,20 @@ export function CreateLessonForm({
         setError("Insira o ID do vídeo do YouTube");
         return;
       }
-      // Validar formato do ID do YouTube
       if (!isValidYoutubeId(youtubeId)) {
         setError("ID do YouTube inválido");
+        return;
+      }
+    } else if (videoSource === "vimeo") {
+      const vimeoUrl = (
+        e.currentTarget.elements.namedItem("vimeoUrl") as HTMLInputElement
+      ).value;
+      if (!vimeoUrl) {
+        setError("Insira a URL do vídeo do Vimeo");
+        return;
+      }
+      if (!isValidVimeoUrl(vimeoUrl)) {
+        setError("URL do Vimeo inválida");
         return;
       }
     }
@@ -60,13 +71,18 @@ export function CreateLessonForm({
     setError("");
 
     const formData = new FormData(e.currentTarget);
+    let videoId = videoPublicId;
+
+    if (videoSource === "youtube") {
+      videoId = formData.get("youtubeId") as string;
+    } else if (videoSource === "vimeo") {
+      videoId = extractVimeoId(formData.get("vimeoUrl") as string);
+    }
+
     const data = {
       title: formData.get("title"),
       description: formData.get("description"),
-      videoPublicId:
-        videoSource === "cloudinary"
-          ? videoPublicId
-          : formData.get("youtubeId"),
+      videoPublicId: videoId,
       videoSource: videoSource,
       moduleId: moduleId,
     };
@@ -146,8 +162,16 @@ export function CreateLessonForm({
   };
 
   const isValidYoutubeId = (id: string) => {
-    // Regex básica para ID do YouTube (11 caracteres)
     return /^[a-zA-Z0-9_-]{11}$/.test(id);
+  };
+
+  const isValidVimeoUrl = (url: string) => {
+    return /^https?:\/\/(www\.)?vimeo\.com\/\d+/.test(url);
+  };
+
+  const extractVimeoId = (url: string) => {
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? match[1] : "";
   };
 
   return (
@@ -190,7 +214,7 @@ export function CreateLessonForm({
         <RadioGroup
           defaultValue="cloudinary"
           onValueChange={(value) =>
-            setVideoSource(value as "cloudinary" | "youtube")
+            setVideoSource(value as "cloudinary" | "youtube" | "vimeo")
           }
           className="flex flex-col space-y-2"
         >
@@ -201,6 +225,10 @@ export function CreateLessonForm({
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="youtube" id="youtube" />
             <Label htmlFor="youtube">YouTube</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="vimeo" id="vimeo" />
+            <Label htmlFor="vimeo">Vimeo</Label>
           </div>
         </RadioGroup>
       </div>
@@ -249,7 +277,7 @@ export function CreateLessonForm({
             Selecione um vídeo no formato MP4, MOV ou WEBM (máx. 100MB)
           </p>
         </div>
-      ) : (
+      ) : videoSource === "youtube" ? (
         <div className="space-y-2">
           <label htmlFor="youtubeId" className="text-sm font-medium">
             ID do Vídeo do YouTube
@@ -280,6 +308,23 @@ export function CreateLessonForm({
             Cole apenas o ID do vídeo (os 11 caracteres após v= na URL)
           </p>
         </div>
+      ) : (
+        <div className="space-y-2">
+          <label htmlFor="vimeoUrl" className="text-sm font-medium">
+            URL do Vídeo do Vimeo
+          </label>
+          <Input
+            id="vimeoUrl"
+            name="vimeoUrl"
+            required
+            disabled={loading}
+            placeholder="Ex: https://vimeo.com/123456789"
+            className="flex-1"
+          />
+          <p className="text-sm text-muted-foreground">
+            Cole a URL completa do vídeo do Vimeo
+          </p>
+        </div>
       )}
 
       <div className="flex justify-end">
@@ -293,4 +338,3 @@ export function CreateLessonForm({
     </form>
   );
 }
-("");

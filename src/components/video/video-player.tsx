@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Player from "@vimeo/player";
 
 interface VideoPlayerProps {
-  publicId: string;
+  publicId: string; // ID do vídeo do Vimeo (será convertido para número)
   title: string;
   lessonId: string;
   courseId: string;
@@ -17,7 +18,8 @@ export function VideoPlayer({
   courseId,
   onComplete,
 }: VideoPlayerProps) {
-  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<Player | null>(null);
   const lastTimeRef = useRef<number>(0);
 
   const handleVideoProgress = useCallback(async () => {
@@ -40,68 +42,45 @@ export function VideoPlayer({
     }
   }, [lessonId, courseId, onComplete]);
 
-  const rewindFiveSeconds = useCallback(() => {
-    if (playerRef.current?.getCurrentTime) {
-      const currentTime = playerRef.current.getCurrentTime();
+  const rewindFiveSeconds = useCallback(async () => {
+    if (playerRef.current) {
+      const currentTime = await playerRef.current.getCurrentTime();
       const newTime = Math.max(0, currentTime - 5);
-      playerRef.current.seekTo(newTime);
+      playerRef.current.setCurrentTime(newTime);
       lastTimeRef.current = newTime;
     }
   }, []);
 
   useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
+    if (!containerRef.current) return;
 
-    const setupPlayer = () => {
-      playerRef.current = new window.YT.Player(`youtube-player-${publicId}`, {
-        videoId: publicId,
-        height: "100%",
-        width: "100%",
-        playerVars: {
-          autoplay: 0,
-          controls: 1,
-          disablekb: 1,
-          fs: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-          showinfo: 0,
-          iv_load_policy: 3,
-          enablejsapi: 1,
-        },
-        events: {
-          onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.ENDED) {
-              handleVideoProgress();
-            }
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              const currentTime = event.target.getCurrentTime();
-              if (currentTime > lastTimeRef.current + 0.5) {
-                event.target.seekTo(lastTimeRef.current);
-              } else {
-                lastTimeRef.current = currentTime;
-              }
-            }
-          },
-        },
-      });
-    };
+    // Inicializar o player do Vimeo
+    playerRef.current = new Player(containerRef.current, {
+      id: parseInt(publicId, 10),
+      width: 640,
+      height: 360,
+      controls: true,
+      responsive: true,
+      autoplay: false,
+      maxwidth: 900,
+      pip: false,
+      dnt: true, // Do Not Track
+    });
 
-    if (window.YT) {
-      setupPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = setupPlayer;
-    }
+    // Configurar eventos do player
+    playerRef.current.on("ended", handleVideoProgress);
 
+    playerRef.current.on("timeupdate", ({ seconds }: { seconds: number }) => {
+      if (seconds > lastTimeRef.current + 0.5) {
+        playerRef.current?.setCurrentTime(lastTimeRef.current);
+      } else {
+        lastTimeRef.current = seconds;
+      }
+    });
+
+    // Adicionar botão de retroceder
     const setupCustomControls = () => {
-      const container = document.getElementById(
-        `youtube-player-${publicId}`
-      )?.parentElement;
+      const container = containerRef.current;
       if (container) {
         const rewindButton = document.createElement("button");
         rewindButton.className = "rewind-button";
@@ -113,6 +92,7 @@ export function VideoPlayer({
 
     setTimeout(setupCustomControls, 1000);
 
+    // Cleanup
     return () => {
       if (playerRef.current) {
         playerRef.current.destroy();
@@ -134,7 +114,7 @@ export function VideoPlayer({
 
   return (
     <div className="aspect-video relative rounded-lg overflow-hidden bg-black">
-      <div id={`youtube-player-${publicId}`} className="w-full h-full" />
+      <div ref={containerRef} className="w-full h-full" />
       <style jsx global>{`
         .rewind-button {
           position: absolute;
@@ -154,25 +134,7 @@ export function VideoPlayer({
         .rewind-button:hover {
           background: rgba(0, 0, 0, 0.9);
         }
-
-        /* Esconder a timeline do YouTube */
-        .ytp-chrome-bottom {
-          display: none !important;
-        }
-        .ytp-progress-bar-container {
-          display: none !important;
-        }
-        .ytp-time-display {
-          display: none !important;
-        }
       `}</style>
     </div>
   );
-}
-
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
 }
