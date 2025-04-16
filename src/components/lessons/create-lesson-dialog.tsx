@@ -23,7 +23,7 @@ export function CreateLessonDialog({
 }: CreateLessonDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Criar Nova Aula</DialogTitle>
         </DialogHeader>

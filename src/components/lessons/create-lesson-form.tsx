@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoIcon, Loader2, Youtube } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import axios from "axios";
+import * as tus from "tus-js-client";
 
 interface CreateLessonFormProps {
   moduleId: string;
@@ -24,9 +27,37 @@ export function CreateLessonForm({
     "idle" | "uploading" | "success"
   >("idle");
   const [videoSource, setVideoSource] = useState<
-    "cloudinary" | "youtube" | "vimeo"
+    "cloudinary" | "youtube" | "vimeo" | "vimeo-upload"
   >("cloudinary");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const vimeoFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados adicionais para o Vimeo
+  const [vimeoFile, setVimeoFile] = useState<File | null>(null);
+  const [vimeoProgress, setVimeoProgress] = useState(0);
+  const [vimeoUploading, setVimeoUploading] = useState(false);
+  const [vimeoVideoId, setVimeoVideoId] = useState<string | null>(null);
+  const [vimeoMetadata, setVimeoMetadata] = useState({
+    name: "",
+    description: "",
+  });
+
+  // Atualiza os metadados do Vimeo quando o título e descrição mudam
+  useEffect(() => {
+    if (videoSource === "vimeo-upload") {
+      const titleInput = document.getElementById("title") as HTMLInputElement;
+      const descriptionInput = document.getElementById(
+        "description"
+      ) as HTMLTextAreaElement;
+
+      if (titleInput && descriptionInput) {
+        setVimeoMetadata({
+          name: titleInput.value,
+          description: descriptionInput.value,
+        });
+      }
+    }
+  }, [videoSource]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -65,6 +96,16 @@ export function CreateLessonForm({
         setError("URL do Vimeo inválida");
         return;
       }
+    } else if (videoSource === "vimeo-upload") {
+      if (vimeoUploading) {
+        setError("Aguarde o upload do vídeo ser concluído");
+        return;
+      }
+
+      if (!vimeoVideoId) {
+        setError("Faça o upload de um vídeo para o Vimeo");
+        return;
+      }
     }
 
     setLoading(true);
@@ -72,18 +113,24 @@ export function CreateLessonForm({
 
     const formData = new FormData(e.currentTarget);
     let videoId = videoPublicId;
+    let finalVideoSource = videoSource;
 
     if (videoSource === "youtube") {
       videoId = formData.get("youtubeId") as string;
     } else if (videoSource === "vimeo") {
       videoId = extractVimeoId(formData.get("vimeoUrl") as string);
+      finalVideoSource = "vimeo";
+    } else if (videoSource === "vimeo-upload") {
+      videoId = vimeoVideoId as string;
+      finalVideoSource = "vimeo";
     }
 
     const data = {
       title: formData.get("title"),
       description: formData.get("description"),
       videoPublicId: videoId,
-      videoSource: videoSource,
+      videoSource:
+        finalVideoSource === "vimeo-upload" ? "vimeo" : finalVideoSource,
       moduleId: moduleId,
     };
 
@@ -161,6 +208,84 @@ export function CreateLessonForm({
     }
   };
 
+  // Handler para upload direto para o Vimeo
+  const handleVimeoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.includes("video/")) {
+      setError("Por favor, selecione um arquivo de vídeo válido");
+      return;
+    }
+
+    setVimeoFile(file);
+    setError("");
+  };
+
+  const handleVimeoUpload = async () => {
+    if (!vimeoFile) {
+      setError("Selecione um arquivo de vídeo");
+      return;
+    }
+
+    setVimeoUploading(true);
+    setError("");
+    setVimeoProgress(0);
+
+    try {
+      // 1. Obter link de upload do backend
+      const { data } = await axios.post("/api/vimeo/upload-link", {
+        name: vimeoMetadata.name || vimeoFile.name,
+        description: vimeoMetadata.description || "",
+      });
+
+      const uploadLink = data.uploadLink;
+
+      // 2. Extrair o ID do vídeo do link
+      const videoIdMatch = uploadLink.match(/\/videos\/(\d+)/);
+      const extractedVideoId = videoIdMatch ? videoIdMatch[1] : null;
+
+      if (extractedVideoId) {
+        setVimeoVideoId(extractedVideoId);
+      }
+
+      // 3. Iniciar o upload com tus-js-client
+      const upload = new tus.Upload(vimeoFile, {
+        endpoint: uploadLink,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        metadata: {
+          filename: vimeoFile.name,
+          filetype: vimeoFile.type,
+        },
+        onError: (error) => {
+          console.error("Erro no upload:", error);
+          setVimeoUploading(false);
+          setError(
+            `Erro durante o upload do vídeo: ${
+              error.message || "Erro desconhecido"
+            }`
+          );
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+          setVimeoProgress(parseFloat(percentage));
+        },
+        onSuccess: () => {
+          setVimeoProgress(100);
+          setVimeoUploading(false);
+          console.log("Upload concluído! ID do vídeo:", extractedVideoId);
+        },
+      });
+
+      // 4. Iniciar o upload
+      upload.start();
+    } catch (error) {
+      console.error("Erro na preparação do upload:", error);
+      setVimeoUploading(false);
+      setError("Falha ao iniciar o upload para o Vimeo. Tente novamente.");
+    }
+  };
+
   const isValidYoutubeId = (id: string) => {
     return /^[a-zA-Z0-9_-]{11}$/.test(id);
   };
@@ -192,6 +317,14 @@ export function CreateLessonForm({
           required
           disabled={loading}
           placeholder="Digite o título da aula"
+          onChange={() => {
+            if (videoSource === "vimeo-upload") {
+              const titleInput = document.getElementById(
+                "title"
+              ) as HTMLInputElement;
+              setVimeoMetadata((prev) => ({ ...prev, name: titleInput.value }));
+            }
+          }}
         />
       </div>
 
@@ -206,6 +339,17 @@ export function CreateLessonForm({
           disabled={loading}
           placeholder="Digite a descrição da aula"
           rows={4}
+          onChange={() => {
+            if (videoSource === "vimeo-upload") {
+              const descriptionInput = document.getElementById(
+                "description"
+              ) as HTMLTextAreaElement;
+              setVimeoMetadata((prev) => ({
+                ...prev,
+                description: descriptionInput.value,
+              }));
+            }
+          }}
         />
       </div>
 
@@ -214,7 +358,9 @@ export function CreateLessonForm({
         <RadioGroup
           defaultValue="cloudinary"
           onValueChange={(value) =>
-            setVideoSource(value as "cloudinary" | "youtube" | "vimeo")
+            setVideoSource(
+              value as "cloudinary" | "youtube" | "vimeo" | "vimeo-upload"
+            )
           }
           className="flex flex-col space-y-2"
         >
@@ -228,7 +374,11 @@ export function CreateLessonForm({
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="vimeo" id="vimeo" />
-            <Label htmlFor="vimeo">Vimeo</Label>
+            <Label htmlFor="vimeo">Vimeo (URL)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="vimeo-upload" id="vimeo-upload" />
+            <Label htmlFor="vimeo-upload">Upload para Vimeo</Label>
           </div>
         </RadioGroup>
       </div>
@@ -308,7 +458,7 @@ export function CreateLessonForm({
             Cole apenas o ID do vídeo (os 11 caracteres após v= na URL)
           </p>
         </div>
-      ) : (
+      ) : videoSource === "vimeo" ? (
         <div className="space-y-2">
           <label htmlFor="vimeoUrl" className="text-sm font-medium">
             URL do Vídeo do Vimeo
@@ -325,12 +475,72 @@ export function CreateLessonForm({
             Cole a URL completa do vídeo do Vimeo
           </p>
         </div>
-      )}
+      ) : videoSource === "vimeo-upload" ? (
+        <div className="space-y-4">
+          <label className="text-sm font-medium">Upload para o Vimeo</label>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <input
+                type="file"
+                accept="video/*"
+                onChange={handleVimeoFileChange}
+                ref={vimeoFileInputRef}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={vimeoUploading}
+                onClick={() => vimeoFileInputRef.current?.click()}
+              >
+                <VideoIcon className="mr-2 h-4 w-4" />
+                {vimeoFile ? "Alterar Vídeo" : "Selecionar Vídeo"}
+              </Button>
+
+              {vimeoFile && !vimeoVideoId && !vimeoUploading && (
+                <Button type="button" onClick={handleVimeoUpload}>
+                  Fazer Upload para Vimeo
+                </Button>
+              )}
+
+              {vimeoFile && (
+                <span className="text-sm">
+                  {vimeoFile.name} (
+                  {(vimeoFile.size / (1024 * 1024)).toFixed(2)} MB)
+                </span>
+              )}
+            </div>
+
+            {vimeoUploading && (
+              <div className="space-y-2">
+                <Progress value={vimeoProgress} />
+                <p className="text-sm text-center">
+                  {vimeoProgress.toFixed(0)}% concluído
+                </p>
+              </div>
+            )}
+
+            {vimeoVideoId && vimeoProgress === 100 && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-green-700 text-sm">
+                  Upload concluído com sucesso! ID do vídeo: {vimeoVideoId}
+                </p>
+              </div>
+            )}
+
+            <p className="text-sm text-muted-foreground">
+              Selecione um vídeo para fazer upload diretamente para o Vimeo. O
+              título e descrição da aula serão usados como metadados do vídeo.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex justify-end">
         <Button
           type="submit"
-          disabled={loading || uploadStatus === "uploading"}
+          disabled={loading || uploadStatus === "uploading" || vimeoUploading}
         >
           {loading ? "Criando..." : "Criar Aula"}
         </Button>
