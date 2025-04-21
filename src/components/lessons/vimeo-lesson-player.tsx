@@ -1,7 +1,7 @@
 // src/components/lessons/vimeo-lesson-player.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Player from "@vimeo/player";
 
 interface VimeoLessonPlayerProps {
@@ -17,64 +17,74 @@ export function VimeoLessonPlayer({
   onComplete,
   onProgress,
 }: VimeoLessonPlayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<Player | null>(null);
-
+  const [error, setError] = useState<string | null>(null);
+  
+  // Usar uma abordagem mais simples e direta para evitar problemas com o DOM
+  // Não manipularemos diretamente o DOM, apenas renderizaremos um iframe
+  
+  // Validar o ID do vídeo
+  const isValidVimeoId = (id: string) => /^\d+$/.test(id);
+  
+  if (!videoId || !isValidVimeoId(videoId)) {
+    return (
+      <div className={`aspect-video bg-gray-800 flex items-center justify-center text-white ${className}`}>
+        <p>ID de vídeo inválido: {videoId}</p>
+      </div>
+    );
+  }
+  
+  // Construir URL do iframe com parâmetros que maximizam a compatibilidade
+  const iframeSrc = `https://player.vimeo.com/video/${videoId}?byline=0&title=0&portrait=0&transparent=0&autopause=0&app_id=58479&dnt=1`;
+  
   useEffect(() => {
-    if (!containerRef.current || !videoId) return;
-
-    // Limpar player anterior se existir
-    if (playerRef.current) {
-      playerRef.current.destroy();
-      playerRef.current = null;
+    // Carregar script do Vimeo Player API se necessário
+    const existingScript = document.getElementById('vimeo-player-api');
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.id = 'vimeo-player-api';
+      script.src = 'https://player.vimeo.com/api/player.js';
+      script.async = true;
+      document.body.appendChild(script);
     }
-
-    try {
-      console.log("Inicializando Vimeo player com ID:", videoId);
-      
-      // Inicializar o player do Vimeo
-      playerRef.current = new Player(containerRef.current, {
-        id: parseInt(videoId, 10),
-        // Remover width e height para usar valor padrão responsivo
-        // O player usará o tamanho do elemento container
-        responsive: true,
-        autoplay: false,
-        pip: true,
-        dnt: true, // Do Not Track
-      });
-
-      // Configurar eventos do player
-      if (onComplete) {
-        playerRef.current.on("ended", onComplete);
+    
+    // Monitorar eventos após o iframe ser carregado
+    const handleIframeLoad = () => {
+      const iframe = document.getElementById(`vimeo-player-${videoId}`);
+      if (iframe && onComplete) {
+        try {
+          const player = new Player(iframe);
+          player.on('ended', onComplete);
+          
+          if (onProgress) {
+            player.on('timeupdate', (data: { percent: number }) => {
+              onProgress(data.percent * 100);
+            });
+          }
+        } catch (err) {
+          console.error('Erro ao inicializar o player:', err);
+        }
       }
-
-      if (onProgress) {
-        playerRef.current.on("timeupdate", ({ percent }: { percent: number }) => {
-          onProgress(percent * 100);
-        });
-      }
-
-      // Força um resize para garantir que o player seja renderizado corretamente
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 500);
-    } catch (error) {
-      console.error("Erro ao inicializar o player do Vimeo:", error);
-    }
-
-    // Cleanup
+    };
+    
+    // Definir um temporizador para iniciar após o iframe ser renderizado
+    const timer = setTimeout(handleIframeLoad, 1000);
+    
     return () => {
-      if (playerRef.current) {
-        playerRef.current.off("ended");
-        playerRef.current.off("timeupdate");
-        playerRef.current.destroy();
-      }
+      clearTimeout(timer);
     };
   }, [videoId, onComplete, onProgress]);
 
   return (
-    <div className={`aspect-video bg-black ${className}`}>
-      <div ref={containerRef} className="w-full h-full" />
+    <div className={`aspect-video ${className}`}>
+      <iframe
+        id={`vimeo-player-${videoId}`}
+        src={iframeSrc}
+        className="w-full h-full"
+        frameBorder="0"
+        allow="autoplay; fullscreen; picture-in-picture"
+        allowFullScreen
+        title={`Vimeo Video ${videoId}`}
+      ></iframe>
     </div>
   );
 }

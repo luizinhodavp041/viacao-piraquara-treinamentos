@@ -1,12 +1,11 @@
 // src/components/video/video-player.tsx
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { VimeoLessonPlayer } from "@/components/lessons/vimeo-lesson-player";
-import Player from "@vimeo/player";
 
 interface VideoPlayerProps {
-  publicId: string; // ID do vídeo do Vimeo (será convertido para número)
+  publicId: string;
   title: string;
   lessonId: string;
   courseId: string;
@@ -21,44 +20,31 @@ export function VideoPlayer({
   onComplete,
 }: VideoPlayerProps) {
   const [loading, setLoading] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const lastTimeRef = useRef<number>(0);
-
-  const handleVideoProgress = useCallback(async () => {
-    try {
-      console.log("Marcando aula como completa:", lessonId);
-      
-      await fetch("/api/progress", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          lessonId,
-          courseId,
-          completed: true,
-        }),
-      });
-
-      if (onComplete) {
-        onComplete(lessonId);
-      }
-    } catch (error) {
-      console.error("Erro ao salvar progresso:", error);
+  
+  const handleVideoComplete = useCallback(() => {
+    console.log("Vídeo concluído, marcando aula como completa:", lessonId);
+    if (onComplete) {
+      onComplete(lessonId);
     }
-  }, [lessonId, courseId, onComplete]);
+  }, [lessonId, onComplete]);
 
   useEffect(() => {
-    // Resetar o estado de carregamento quando mudar o vídeo
+    // Resetar o estado quando mudar o vídeo
     setLoading(true);
     
-    // Simular um tempo de carregamento curto
+    console.log("VideoPlayer inicializado com:", {
+      publicId,
+      lessonId,
+      title
+    });
+    
+    // Simular carregamento
     const timer = setTimeout(() => {
       setLoading(false);
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [publicId]);
+  }, [publicId, lessonId, title]);
 
   if (!publicId) {
     return (
@@ -77,14 +63,12 @@ export function VideoPlayer({
   }
 
   return (
-    <div className="aspect-video relative rounded-lg overflow-hidden bg-black">
+    <div className="relative w-full">
       <VimeoLessonPlayer 
-        videoId={publicId}
-        onComplete={handleVideoProgress}
-        onProgress={(progress) => {
-          // Opcional: você pode usar este callback para rastrear o progresso
-          console.log(`Progresso do vídeo: ${progress.toFixed(2)}%`);
-        }}
+        videoId={publicId} 
+        className="rounded-lg overflow-hidden" 
+        onComplete={handleVideoComplete}
+        onProgress={(progress) => console.log(`Progresso do vídeo: ${progress.toFixed(2)}%`)}
       />
     </div>
   );
