@@ -11,6 +11,7 @@ interface Lesson {
   _id: string;
   title: string;
   description: string;
+  vimeoId?: string;
   videoUrl?: string;
   order: number;
 }
@@ -31,15 +32,28 @@ export function LessonsList({
   const [deletingLesson, setDeletingLesson] = useState<Lesson | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLessons = async () => {
     try {
-      const response = await fetch(`/api/modules/${moduleId}/lessons`);
-      if (!response.ok) throw new Error("Erro ao carregar aulas");
+      setLoading(true);
+      console.log("Buscando aulas para o módulo:", moduleId);
+      
+      // Adicionar um timestamp para evitar cache
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/modules/${moduleId}/lessons?t=${timestamp}`);
+      
+      if (!response.ok) {
+        throw new Error("Erro ao carregar aulas");
+      }
+      
       const data = await response.json();
+      console.log("Aulas recebidas:", data.length);
       setLessons(data);
+      setError(null);
     } catch (error) {
       console.error("Erro ao carregar aulas:", error);
+      setError("Falha ao carregar as aulas. Tente novamente mais tarde.");
     } finally {
       setLoading(false);
     }
@@ -49,7 +63,25 @@ export function LessonsList({
     fetchLessons();
   }, [moduleId]);
 
-  if (loading) {
+  const handleLessonAdded = (newLesson: any) => {
+    console.log("Nova aula adicionada:", newLesson);
+    
+    // Adicionar a nova aula ao estado local
+    setLessons(prev => [...prev, newLesson]);
+    
+    // Também buscar aulas atualizadas do servidor (como backup)
+    setTimeout(() => {
+      fetchLessons();
+    }, 1000);
+    
+    // Fechar o diálogo
+    setIsCreateOpen(false);
+    
+    // Notificar o componente pai
+    if (onUpdate) onUpdate();
+  };
+
+  if (loading && lessons.length === 0) {
     return <div>Carregando aulas...</div>;
   }
 
@@ -57,6 +89,12 @@ export function LessonsList({
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+          {error}
+        </div>
+      )}
+      
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Aulas</h3>
         <Button onClick={() => setIsCreateOpen(true)}>
@@ -75,7 +113,7 @@ export function LessonsList({
             <div className="flex-1">
               <div className="font-medium">{lesson.title}</div>
               <div className="text-sm text-gray-500">{lesson.description}</div>
-              {lesson.videoUrl && (
+              {(lesson.videoUrl || lesson.vimeoId) && (
                 <div className="flex items-center gap-1 text-sm text-gray-400">
                   <Video className="h-3 w-3" />
                   <span>Vídeo disponível</span>
@@ -112,10 +150,7 @@ export function LessonsList({
         moduleId={moduleId}
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onSuccess={() => {
-          fetchLessons();
-          setIsCreateOpen(false);
-        }}
+        onSuccess={handleLessonAdded}
       />
 
       <EditLessonDialog

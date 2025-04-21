@@ -1,4 +1,3 @@
-// src/components/lessons/create-lesson-dialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -17,7 +16,7 @@ interface CreateLessonDialogProps {
   moduleId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (newLesson?: any) => void;
 }
 
 export function CreateLessonDialog({
@@ -76,18 +75,25 @@ export function CreateLessonDialog({
         throw new Error(errorData.error || "Erro ao criar aula");
       }
 
+      // Obter a aula criada da resposta
+      const newLesson = await response.json();
+      
       setSuccess("Aula criada com sucesso!");
       
-      // Limpar estados
-      setTitle("");
-      setDescription("");
-      setVimeoId(null);
-      
-      // Fechar o diálogo principal
-      onOpenChange(false);
-      
-      // Chamar função de sucesso para atualizar a interface
-      onSuccess();
+      // Esperar um momento para garantir que o backend finalizou o processamento
+      setTimeout(() => {
+        // Limpar estados
+        setTitle("");
+        setDescription("");
+        setVimeoId(null);
+        setSuccess(null);
+        
+        // Fechar o diálogo principal
+        onOpenChange(false);
+        
+        // Chamar função de sucesso para atualizar a interface, passando a nova aula
+        onSuccess(newLesson);
+      }, 1000);
     } catch (error) {
       console.error("Erro ao criar aula:", error);
       setError(error instanceof Error ? error.message : "Erro ao criar aula");

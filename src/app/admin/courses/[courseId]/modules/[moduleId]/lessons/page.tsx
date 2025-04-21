@@ -107,16 +107,16 @@ export default function ModuleLessonsPage({
         {/* Botões de ação */}
         <div className="flex items-center gap-2">
           {/* Botão Upload para Vimeo */}
-          <Button variant="outline" onClick={() => setVimeoUploadOpen(true)}>
+          {/* <Button variant="outline" onClick={() => setVimeoUploadOpen(true)}>
             <Video className="h-4 w-4 mr-2" />
             Upload para Vimeo
-          </Button>
+          </Button> */}
 
           {/* Botão Nova Aula */}
-          <Button onClick={() => setCreateDialogOpen(true)}>
+          {/* <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nova Aula
-          </Button>
+          </Button> */}
         </div>
       </div>
 

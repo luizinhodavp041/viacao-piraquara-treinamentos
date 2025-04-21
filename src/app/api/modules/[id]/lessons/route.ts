@@ -1,4 +1,3 @@
-// src/app/api/modules/[id]/lessons/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/mongodb";
 import Module from "@/models/Module";
@@ -14,9 +13,7 @@ export async function GET(
     const moduleId = params.id;
     console.log("GET - Buscando aulas para o módulo:", moduleId);
 
-    // Buscar todas as aulas do módulo
-    // Estamos usando uma abordagem diferente aqui:
-    // 1. Primeiro, buscamos o módulo com as aulas preenchidas (populate)
+    // Buscar o módulo com as aulas (populate)
     const module = await Module.findById(moduleId).populate('lessons');
     
     if (!module) {
@@ -29,7 +26,7 @@ export async function GET(
 
     console.log("GET - Aulas encontradas:", module.lessons?.length || 0);
     
-    // 2. Retornamos diretamente as aulas do módulo
+    // Retornar as aulas do módulo
     return NextResponse.json(module.lessons || []);
   } catch (error) {
     console.error("GET - Erro ao buscar aulas:", error);
