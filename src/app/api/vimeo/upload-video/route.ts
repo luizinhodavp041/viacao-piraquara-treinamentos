@@ -1,4 +1,3 @@
-// src/app/api/vimeo/upload-link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import vimeoClient from "../../vimeo/config"; // Ajuste o caminho conforme necessário
 
