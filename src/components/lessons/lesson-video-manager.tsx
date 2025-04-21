@@ -1,8 +1,9 @@
+// src/components/lessons/lesson-video-manager.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { VimeoLessonPlayer } from "./vimeo-lesson-player";
+import { VimeoLessonPlayer } from "./vimeo-lesson-player"; // Importar o componente criado
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,10 +49,12 @@ export function LessonVideoManager({
     setError(null);
 
     try {
+      console.log("Buscando informações do vídeo:", videoId);
       const response = await axios.get(
         `/api/vimeo/get-video-info?videoId=${videoId}`
       );
       setVideoInfo(response.data);
+      console.log("Informações do vídeo recebidas:", response.data);
     } catch (err) {
       console.error("Erro ao carregar informações do vídeo:", err);
       setError("Não foi possível carregar informações do vídeo");
@@ -61,8 +64,11 @@ export function LessonVideoManager({
   };
 
   useEffect(() => {
-    if (videoSource === "vimeo") {
+    if (videoSource === "vimeo" && videoId) {
+      console.log("Iniciando carregamento das informações do vídeo do Vimeo:", videoId);
       loadVimeoInfo();
+    } else {
+      console.log("Fonte de vídeo não é Vimeo ou ID não fornecido:", { videoSource, videoId });
     }
   }, [videoId, videoSource]);
 
@@ -93,12 +99,23 @@ export function LessonVideoManager({
       );
     }
 
+    console.log("Renderizando player para:", { videoSource, videoId });
+
     switch (videoSource) {
       case "vimeo":
+        if (!videoId) {
+          return (
+            <div className="flex items-center justify-center h-64 bg-gray-100 rounded-md">
+              <p className="text-gray-500">Nenhum vídeo disponível</p>
+            </div>
+          );
+        }
         return (
           <VimeoLessonPlayer
             videoId={videoId}
             className="rounded-md overflow-hidden"
+            onComplete={() => console.log("Vídeo concluído")}
+            onProgress={(progress) => console.log("Progresso:", progress)}
           />
         );
 
@@ -147,7 +164,7 @@ export function LessonVideoManager({
         <Tabs defaultValue="player">
           <TabsList className="mb-4">
             <TabsTrigger value="player">Player</TabsTrigger>
-            {videoSource === "vimeo" && (
+            {videoSource === "vimeo" && videoInfo && (
               <TabsTrigger value="info">Informações</TabsTrigger>
             )}
           </TabsList>
@@ -163,6 +180,7 @@ export function LessonVideoManager({
                   : videoSource === "youtube"
                   ? "YouTube"
                   : "Cloudinary"}
+                {videoId && videoSource === "vimeo" && ` (ID: ${videoId})`}
               </div>
 
               {videoSource === "vimeo" && videoId && (
@@ -180,73 +198,63 @@ export function LessonVideoManager({
             </div>
           </TabsContent>
 
-          {videoSource === "vimeo" && (
+          {videoSource === "vimeo" && videoInfo && (
             <TabsContent value="info" className="space-y-4">
-              {videoInfo ? (
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium">Título</h3>
+                  <p>{videoInfo.title}</p>
+                </div>
+
+                {videoInfo.description && (
                   <div>
-                    <h3 className="text-sm font-medium">Título</h3>
-                    <p>{videoInfo.title}</p>
+                    <h3 className="text-sm font-medium">Descrição</h3>
+                    <p className="text-sm whitespace-pre-line">
+                      {videoInfo.description}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium">Duração</h3>
+                    <p>{formatDuration(videoInfo.duration)}</p>
                   </div>
 
-                  {videoInfo.description && (
-                    <div>
-                      <h3 className="text-sm font-medium">Descrição</h3>
-                      <p className="text-sm whitespace-pre-line">
-                        {videoInfo.description}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h3 className="text-sm font-medium">Duração</h3>
-                      <p>{formatDuration(videoInfo.duration)}</p>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-medium">Privacidade</h3>
-                      <p>
-                        {videoInfo.privacy === "anybody"
-                          ? "Público"
-                          : "Privado"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-medium">Data de Upload</h3>
-                      <p>{new Date(videoInfo.uploadedAt).toLocaleString()}</p>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-medium">ID do Vídeo</h3>
-                      <p>{videoInfo.id}</p>
-                    </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Privacidade</h3>
+                    <p>
+                      {videoInfo.privacy === "anybody"
+                        ? "Público"
+                        : "Privado"}
+                    </p>
                   </div>
 
-                  {videoInfo.thumbnails && videoInfo.thumbnails.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium">Miniatura</h3>
-                      <img
-                        src={
-                          videoInfo.thumbnails[2]?.link ||
-                          videoInfo.thumbnails[0].link
-                        }
-                        alt="Thumbnail"
-                        className="mt-2 rounded-md max-w-xs"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <h3 className="text-sm font-medium">Data de Upload</h3>
+                    <p>{new Date(videoInfo.uploadedAt).toLocaleString()}</p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium">ID do Vídeo</h3>
+                    <p>{videoInfo.id}</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center h-32">
-                  <p className="text-muted-foreground">
-                    {loading
-                      ? "Carregando informações..."
-                      : "Nenhuma informação disponível"}
-                  </p>
-                </div>
-              )}
+
+                {videoInfo.thumbnails && videoInfo.thumbnails.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium">Miniatura</h3>
+                    <img
+                      src={
+                        videoInfo.thumbnails[2]?.link ||
+                        videoInfo.thumbnails[0].link
+                      }
+                      alt="Thumbnail"
+                      className="mt-2 rounded-md max-w-xs"
+                    />
+                  </div>
+                )}
+              </div>
             </TabsContent>
           )}
         </Tabs>

@@ -27,6 +27,7 @@ interface Lesson {
   title: string;
   description: string;
   videoPublicId?: string;
+  vimeoId?: string; // Adicione este campo
 }
 
 interface Module {
@@ -367,11 +368,11 @@ export default function CoursePage({
             <>
               <div className="aspect-video">
                 <VideoPlayer
-                  publicId={selectedLesson.videoPublicId || ""}
+                  publicId={selectedLesson.vimeoId || selectedLesson.videoPublicId || ""}
                   title={selectedLesson.title}
                   lessonId={selectedLesson._id}
                   courseId={params.courseId}
-                  onComplete={handleLessonComplete}
+                  onComplete={(lessonId) => handleLessonComplete(lessonId)}
                 />
               </div>
               <div>
