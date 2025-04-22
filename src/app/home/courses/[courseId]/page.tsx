@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation"; // Importação adicionada
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -27,7 +28,7 @@ interface Lesson {
   title: string;
   description: string;
   videoPublicId?: string;
-  vimeoId?: string; // Adicione este campo
+  vimeoId?: string;
 }
 
 interface Module {
@@ -65,11 +66,11 @@ interface Certificate {
   validationCode: string;
 }
 
-export default function CoursePage({
-  params,
-}: {
-  params: { courseId: string };
-}) {
+export default function CoursePage() {
+  // Usar useParams para acessar os parâmetros da rota
+  const params = useParams();
+  const courseId = params.courseId as string;
+
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -104,11 +105,11 @@ export default function CoursePage({
     fetchQuiz();
     fetchQuizResponse();
     fetchCertificate();
-  }, [params.courseId]);
+  }, [courseId]); // Atualizado para usar courseId
 
   useEffect(() => {
     console.log("Debug do curso:", {
-      courseId: params.courseId,
+      courseId, // Atualizado para usar courseId
       hasModules: !!course?.modules,
       modulesCount: course?.modules?.length,
       hasQuiz: !!quiz,
@@ -129,13 +130,13 @@ export default function CoursePage({
     quizResponse,
     certificate,
     allLessonsCompleted,
-    params.courseId,
+    courseId, // Atualizado para usar courseId
   ]);
 
   const fetchCourse = async () => {
     try {
-      console.log("Buscando curso:", params.courseId);
-      const response = await fetch(`/api/courses/${params.courseId}`);
+      console.log("Buscando curso:", courseId);
+      const response = await fetch(`/api/courses/${courseId}`);
       if (!response.ok) throw new Error("Erro ao carregar curso");
       const data = await response.json();
       console.log("Curso carregado:", data);
@@ -154,7 +155,7 @@ export default function CoursePage({
   const fetchProgress = async () => {
     try {
       console.log("Buscando progresso");
-      const response = await fetch(`/api/progress?courseId=${params.courseId}`);
+      const response = await fetch(`/api/progress?courseId=${courseId}`);
       if (!response.ok) throw new Error("Erro ao carregar progresso");
       const progress = await response.json();
       console.log("Progresso carregado:", progress);
@@ -167,7 +168,7 @@ export default function CoursePage({
   const fetchQuiz = async () => {
     try {
       console.log("Buscando quiz");
-      const response = await fetch(`/api/quiz?courseId=${params.courseId}`);
+      const response = await fetch(`/api/quiz?courseId=${courseId}`);
       if (response.ok) {
         const data = await response.json();
         console.log("Quiz carregado:", data);
@@ -182,7 +183,7 @@ export default function CoursePage({
     try {
       console.log("Buscando resposta do quiz");
       const response = await fetch(
-        `/api/quiz/response/user?courseId=${params.courseId}`
+        `/api/quiz/response/user?courseId=${courseId}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -197,9 +198,7 @@ export default function CoursePage({
   const fetchCertificate = async () => {
     try {
       console.log("Buscando certificado");
-      const response = await fetch(
-        `/api/certificates?courseId=${params.courseId}`
-      );
+      const response = await fetch(`/api/certificates?courseId=${courseId}`);
       if (response.ok) {
         const data = await response.json();
         console.log("Certificado carregado:", data);
@@ -217,7 +216,7 @@ export default function CoursePage({
       const response = await fetch("/api/certificates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId: params.courseId }),
+        body: JSON.stringify({ courseId }),
       });
 
       if (!response.ok) {
@@ -368,10 +367,12 @@ export default function CoursePage({
             <>
               <div className="aspect-video">
                 <VideoPlayer
-                  publicId={selectedLesson.vimeoId || selectedLesson.videoPublicId || ""}
+                  publicId={
+                    selectedLesson.vimeoId || selectedLesson.videoPublicId || ""
+                  }
                   title={selectedLesson.title}
                   lessonId={selectedLesson._id}
-                  courseId={params.courseId}
+                  courseId={courseId}
                   onComplete={(lessonId) => handleLessonComplete(lessonId)}
                 />
               </div>

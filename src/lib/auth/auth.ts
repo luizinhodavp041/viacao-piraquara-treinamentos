@@ -19,7 +19,9 @@ export async function decrypt(token: string): Promise<any> {
 }
 
 export async function login(token: string) {
-  const cookieStore = cookies();
+  // Primeiro, obtenha o cookieStore aguardando a Promise
+  const cookieStore = await cookies();
+  // Agora use o método set
   cookieStore.set("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -29,12 +31,16 @@ export async function login(token: string) {
 }
 
 export async function logout() {
-  const cookieStore = cookies();
+  // Primeiro, obtenha o cookieStore aguardando a Promise
+  const cookieStore = await cookies();
+  // Agora use o método delete
   cookieStore.delete("token");
 }
 
 export async function getSession() {
-  const cookieStore = cookies();
+  // Primeiro, obtenha o cookieStore aguardando a Promise
+  const cookieStore = await cookies();
+  // Agora use o método get
   const token = cookieStore.get("token");
 
   if (!token) return null;
