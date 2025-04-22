@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VideoIcon, ExternalLink, RotateCcw } from "lucide-react";
+import Image from "next/image";
 
 interface LessonVideoManagerProps {
   lessonId: string;
@@ -65,10 +66,16 @@ export function LessonVideoManager({
 
   useEffect(() => {
     if (videoSource === "vimeo" && videoId) {
-      console.log("Iniciando carregamento das informações do vídeo do Vimeo:", videoId);
+      console.log(
+        "Iniciando carregamento das informações do vídeo do Vimeo:",
+        videoId
+      );
       loadVimeoInfo();
     } else {
-      console.log("Fonte de vídeo não é Vimeo ou ID não fornecido:", { videoSource, videoId });
+      console.log("Fonte de vídeo não é Vimeo ou ID não fornecido:", {
+        videoSource,
+        videoId,
+      });
     }
   }, [videoId, videoSource]);
 
@@ -224,9 +231,7 @@ export function LessonVideoManager({
                   <div>
                     <h3 className="text-sm font-medium">Privacidade</h3>
                     <p>
-                      {videoInfo.privacy === "anybody"
-                        ? "Público"
-                        : "Privado"}
+                      {videoInfo.privacy === "anybody" ? "Público" : "Privado"}
                     </p>
                   </div>
 
@@ -244,12 +249,14 @@ export function LessonVideoManager({
                 {videoInfo.thumbnails && videoInfo.thumbnails.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium">Miniatura</h3>
-                    <img
+                    <Image
                       src={
                         videoInfo.thumbnails[2]?.link ||
                         videoInfo.thumbnails[0].link
                       }
                       alt="Thumbnail"
+                      width={400}
+                      height={225}
                       className="mt-2 rounded-md max-w-xs"
                     />
                   </div>
