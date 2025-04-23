@@ -1,7 +1,7 @@
 // src/components/video/video-player.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { VimeoLessonPlayer } from "@/components/lessons/vimeo-lesson-player";
 
 interface VideoPlayerProps {
@@ -20,31 +20,41 @@ export function VideoPlayer({
   onComplete,
 }: VideoPlayerProps) {
   const [loading, setLoading] = useState(true);
-  
-  const handleVideoComplete = useCallback(() => {
-    console.log("Vídeo concluído, marcando aula como completa:", lessonId);
-    if (onComplete) {
-      onComplete(lessonId);
-    }
-  }, [lessonId, onComplete]);
 
   useEffect(() => {
-    // Resetar o estado quando mudar o vídeo
-    setLoading(true);
-    
-    console.log("VideoPlayer inicializado com:", {
-      publicId,
-      lessonId,
-      title
-    });
-    
-    // Simular carregamento
+    // Simulação de carregamento
     const timer = setTimeout(() => {
       setLoading(false);
     }, 500);
-    
+
     return () => clearTimeout(timer);
-  }, [publicId, lessonId, title]);
+  }, [publicId]);
+
+  const handleVideoComplete = () => {
+    // Registrar progresso quando o vídeo terminar
+    console.log("Vídeo concluído, registrando progresso...");
+
+    // Chame a API para registrar progresso
+    fetch("/api/progress", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lessonId,
+        courseId,
+        completed: true,
+      }),
+    })
+      .then(() => {
+        if (onComplete) {
+          onComplete(lessonId);
+        }
+      })
+      .catch((error) => {
+        console.error("Erro ao registrar progresso:", error);
+      });
+  };
 
   if (!publicId) {
     return (
@@ -64,11 +74,11 @@ export function VideoPlayer({
 
   return (
     <div className="relative w-full">
-      <VimeoLessonPlayer 
-        videoId={publicId} 
-        className="rounded-lg overflow-hidden" 
+      <VimeoLessonPlayer
+        videoId={publicId}
+        className="rounded-lg overflow-hidden"
         onComplete={handleVideoComplete}
-        onProgress={(progress) => console.log(`Progresso do vídeo: ${progress.toFixed(2)}%`)}
+        onProgress={(progress) => console.log(`Progresso: ${progress}%`)}
       />
     </div>
   );
