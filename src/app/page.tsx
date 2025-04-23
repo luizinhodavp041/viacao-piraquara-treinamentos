@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { decrypt } from "@/lib/auth/auth";
 
 export default async function RootPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies(); // Adicionando await aqui
   const token = cookieStore.get("token");
 
   // Se não tiver token, redireciona para login
