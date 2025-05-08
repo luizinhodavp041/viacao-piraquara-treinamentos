@@ -1,34 +1,27 @@
+// src/app/home/courses/[courseId]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation"; // Importação adicionada
-import { Button } from "@/components/ui/button";
+import { useParams } from "next/navigation";
+import LessonVideo from "@/components/LessonVideo";
+import Link from "next/link";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { VideoPlayer } from "@/components/video/video-player";
-import {
-  ChevronLeft,
-  Play,
-  CheckCircle,
-  Circle,
-  FileQuestion,
-  Lock,
-  Download,
-  FileText,
-} from "lucide-react";
-import Link from "next/link";
-import { TakeQuizDialog } from "@/components/quiz/take-quiz-dialog";
+import { ChevronLeft, CheckCircle, Circle, Play } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import DiagnosticPanel from "@/components/DiagnosticPanel";
 
 interface Lesson {
   _id: string;
   title: string;
   description: string;
-  videoPublicId?: string;
+  videoId?: string;
   vimeoId?: string;
+  videoPublicId?: string;
 }
 
 interface Module {
@@ -45,29 +38,7 @@ interface Course {
   modules: Module[];
 }
 
-interface Quiz {
-  _id: string;
-  questions: {
-    question: string;
-    options: string[];
-    correctAnswer: number;
-  }[];
-}
-
-interface QuizResponse {
-  _id: string;
-  score: number;
-  completedAt: string;
-}
-
-interface Certificate {
-  _id: string;
-  issuedAt: string;
-  validationCode: string;
-}
-
 export default function CoursePage() {
-  // Usar useParams para acessar os parâmetros da rota
   const params = useParams();
   const courseId = params.courseId as string;
 
@@ -75,367 +46,230 @@ export default function CoursePage() {
   const [loading, setLoading] = useState(true);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
-  const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizResponse, setQuizResponse] = useState<QuizResponse | null>(null);
-  const [certificate, setCertificate] = useState<Certificate | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Definição de allLessonsCompleted movida para antes dos useEffects
-  const allLessonsCompleted =
-    course?.modules?.every((module) => {
-      const moduleCompleted = module.lessons.every((lesson) => {
-        const isCompleted = completedLessons.includes(lesson._id);
-        console.log(
-          `Aula ${lesson.title}:`,
-          isCompleted ? "Completa" : "Incompleta"
-        );
-        return isCompleted;
-      });
-      console.log(
-        `Módulo ${module.title}:`,
-        moduleCompleted ? "Completo" : "Incompleto"
-      );
-      return moduleCompleted;
-    }) ?? false;
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCourse();
-    fetchProgress();
-    fetchQuiz();
-    fetchQuizResponse();
-    fetchCertificate();
-  }, [courseId]); // Atualizado para usar courseId
+    const fetchCourse = async () => {
+      try {
+        setLoading(true);
 
-  useEffect(() => {
-    console.log("Debug do curso:", {
-      courseId, // Atualizado para usar courseId
-      hasModules: !!course?.modules,
-      modulesCount: course?.modules?.length,
-      hasQuiz: !!quiz,
-      completedLessonsCount: completedLessons.length,
-      totalLessons: course?.modules?.reduce(
-        (total, module) => total + module.lessons.length,
-        0
-      ),
-      allLessonsCompleted,
-      quizResponse: !!quizResponse,
-      quizScore: quizResponse?.score,
-      certificate: !!certificate,
-    });
-  }, [
-    course,
-    quiz,
-    completedLessons,
-    quizResponse,
-    certificate,
-    allLessonsCompleted,
-    courseId, // Atualizado para usar courseId
-  ]);
+        // Carregar dados do curso
+        console.log("Buscando curso:", courseId);
+        const courseRes = await fetch(`/api/courses/${courseId}`);
 
-  const fetchCourse = async () => {
-    try {
-      console.log("Buscando curso:", courseId);
-      const response = await fetch(`/api/courses/${courseId}`);
-      if (!response.ok) throw new Error("Erro ao carregar curso");
-      const data = await response.json();
-      console.log("Curso carregado:", data);
-      setCourse(data);
+        if (!courseRes.ok) {
+          throw new Error(`Erro ao carregar curso: ${courseRes.status}`);
+        }
 
-      if (data.modules[0]?.lessons[0]) {
-        setSelectedLesson(data.modules[0].lessons[0]);
+        const courseData = await courseRes.json();
+        console.log("Dados do curso recebidos:", courseData);
+
+        setCourse(courseData);
+
+        // Selecionar primeira lição por padrão
+        if (
+          courseData.modules &&
+          courseData.modules.length > 0 &&
+          courseData.modules[0].lessons &&
+          courseData.modules[0].lessons.length > 0
+        ) {
+          const firstLesson = courseData.modules[0].lessons[0];
+          console.log("Primeira lição:", firstLesson);
+          setSelectedLesson(firstLesson);
+        }
+
+        // Carregar progresso do curso
+        const progressRes = await fetch(`/api/progress?courseId=${courseId}`);
+        if (progressRes.ok) {
+          const progressData = await progressRes.json();
+          console.log("Dados de progresso:", progressData);
+
+          // Extrair IDs das lições concluídas
+          const completedIds = progressData
+            .filter((item: any) => item.progress >= 100)
+            .map((item: any) => item.lesson);
+
+          setCompletedLessons(completedIds);
+        }
+      } catch (err: any) {
+        console.error("Erro:", err);
+        setError(err.message || "Erro ao carregar dados do curso");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Erro ao carregar curso:", error);
-    } finally {
-      setLoading(false);
+    };
+
+    if (courseId) {
+      fetchCourse();
     }
-  };
-
-  const fetchProgress = async () => {
-    try {
-      console.log("Buscando progresso");
-      const response = await fetch(`/api/progress?courseId=${courseId}`);
-      if (!response.ok) throw new Error("Erro ao carregar progresso");
-      const progress = await response.json();
-      console.log("Progresso carregado:", progress);
-      setCompletedLessons(progress.map((p: any) => p.lesson));
-    } catch (error) {
-      console.error("Erro ao carregar progresso:", error);
-    }
-  };
-
-  const fetchQuiz = async () => {
-    try {
-      console.log("Buscando quiz");
-      const response = await fetch(`/api/quiz?courseId=${courseId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Quiz carregado:", data);
-        setQuiz(data);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar quiz:", error);
-    }
-  };
-
-  const fetchQuizResponse = async () => {
-    try {
-      console.log("Buscando resposta do quiz");
-      const response = await fetch(
-        `/api/quiz/response/user?courseId=${courseId}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Resposta do quiz carregada:", data);
-        setQuizResponse(data);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar resposta do quiz:", error);
-    }
-  };
-
-  const fetchCertificate = async () => {
-    try {
-      console.log("Buscando certificado");
-      const response = await fetch(`/api/certificates?courseId=${courseId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Certificado carregado:", data);
-        setCertificate(data);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar certificado:", error);
-    }
-  };
-
-  const handleGenerateCertificate = async () => {
-    try {
-      setIsGenerating(true);
-      console.log("Gerando certificado");
-      const response = await fetch("/api/certificates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Erro ao gerar certificado");
-      }
-
-      const data = await response.json();
-      console.log("Certificado gerado:", data);
-      setCertificate(data);
-    } catch (error) {
-      console.error("Erro ao gerar certificado:", error);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  }, [courseId]);
 
   const handleLessonSelect = (lesson: Lesson) => {
+    console.log("Selecionando lição:", lesson);
     setSelectedLesson(lesson);
   };
 
-  const findNextLesson = (currentLessonId: string) => {
-    let foundCurrent = false;
-    for (const module of course?.modules || []) {
-      for (const lesson of module.lessons) {
-        if (foundCurrent) {
-          return lesson;
-        }
-        if (lesson._id === currentLessonId) {
-          foundCurrent = true;
-        }
-      }
-    }
-    return null;
-  };
-
-  const handleLessonComplete = async (lessonId: string) => {
+  const handleLessonComplete = (lessonId: string) => {
+    console.log("Lição completada:", lessonId);
+    // Atualizar localmente a lista de lições concluídas
     if (!completedLessons.includes(lessonId)) {
-      console.log("Marcando aula como completa:", lessonId);
       setCompletedLessons((prev) => [...prev, lessonId]);
     }
-
-    if (selectedLesson) {
-      const nextLesson = findNextLesson(selectedLesson._id);
-      if (nextLesson) {
-        setSelectedLesson(nextLesson);
-      }
-    }
   };
 
-  const handleQuizComplete = async () => {
-    setShowQuiz(false);
-    await fetchQuizResponse();
-  };
+  // Função para identificar o ID do vídeo a ser usado
+  const getVideoId = (lesson: Lesson | null) => {
+    if (!lesson) return "";
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    // Ordem de prioridade: videoId > vimeoId > videoPublicId
+    return lesson.videoId || lesson.vimeoId || lesson.videoPublicId || "";
   };
 
   if (loading) {
-    return <div>Carregando...</div>;
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded mb-4 w-1/3"></div>
+          <div className="h-64 bg-gray-200 rounded mb-6"></div>
+          <div className="h-4 bg-gray-200 rounded mb-2 w-2/3"></div>
+          <div className="h-4 bg-gray-200 rounded mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded mb-2 w-5/6"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="bg-red-50 p-4 rounded-md border border-red-200 text-red-700">
+          <h2 className="text-lg font-bold">Erro</h2>
+          <p>{error}</p>
+        </div>
+        <Link href="/home/courses">
+          <Button variant="outline" className="mt-4">
+            Voltar para lista de cursos
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   if (!course) {
-    return <div>Curso não encontrado</div>;
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Curso não encontrado
+          </h2>
+          <p className="mt-2 text-gray-600">
+            O curso solicitado não está disponível.
+          </p>
+          <Link href="/home/courses">
+            <Button variant="outline" className="mt-4">
+              Voltar para lista de cursos
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  console.log("Renderizando com estados:", {
-    allLessonsCompleted,
-    hasQuiz: !!quiz,
-    quizResponse,
-  });
+  // Obter o ID do vídeo para a lição selecionada
+  const currentVideoId = getVideoId(selectedLesson);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="container mx-auto p-6">
+      {/* Painel de diagnóstico - remova na versão final */}
+      {/* <DiagnosticPanel
+        course={course}
+        selectedLesson={selectedLesson}
+        completedLessons={completedLessons}
+      /> */}
+
+      <div className="flex items-center gap-4 mb-6">
         <Link href="/home/courses">
           <Button variant="outline" size="icon">
             <ChevronLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold tracking-tight">{course.title}</h2>
-          <p className="text-muted-foreground">{course.description}</p>
+        <div>
+          <h1 className="text-2xl font-bold">{course.title}</h1>
+          <p className="text-gray-500">{course.description}</p>
         </div>
-        {allLessonsCompleted && quiz && (
-          <div>
-            {quizResponse ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Última tentativa:{" "}
-                  {new Date(quizResponse.completedAt).toLocaleDateString()} -{" "}
-                  {quizResponse.score}%
-                </span>
-                <Button
-                  onClick={() => setShowQuiz(true)}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <FileQuestion className="h-4 w-4" />
-                  Tentar Novamente
-                </Button>
-                {quizResponse.score >= 70 && (
-                  <>
-                    {certificate ? (
-                      <Button variant="outline" asChild className="gap-2">
-                        <a
-                          href={`/api/certificates/download?certificateId=${certificate._id}`}
-                        >
-                          <Download className="h-4 w-4" />
-                          Baixar Certificado
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleGenerateCertificate}
-                        disabled={isGenerating}
-                        variant="outline"
-                        className="gap-2"
-                      >
-                        <FileText className="h-4 w-4" />
-                        {isGenerating ? "Gerando..." : "Gerar Certificado"}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <Button
-                onClick={() => setShowQuiz(true)}
-                variant="outline"
-                className="gap-2"
-              >
-                <FileQuestion className="h-4 w-4" />
-                Quiz Final
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
+        {/* Área principal com vídeo e descrição */}
         <div className="space-y-4">
-          {selectedLesson && (
+          {selectedLesson ? (
             <>
-              <div className="aspect-video">
-                <VideoPlayer
-                  publicId={
-                    selectedLesson.vimeoId || selectedLesson.videoPublicId || ""
-                  }
-                  title={selectedLesson.title}
-                  lessonId={selectedLesson._id}
-                  courseId={courseId}
-                  onComplete={(lessonId) => handleLessonComplete(lessonId)}
-                />
+              <div className="bg-gray-100 p-2 rounded">
+                {/* <p>Video ID usado: {currentVideoId || "Nenhum"}</p> */}
               </div>
-              <div>
-                <h3 className="text-lg font-semibold">
-                  {selectedLesson.title}
-                </h3>
-                <p className="text-muted-foreground">
+
+              <LessonVideo
+                lessonId={selectedLesson._id}
+                courseId={courseId}
+                videoId={currentVideoId}
+                title={selectedLesson.title}
+              />
+              <div className="mt-4">
+                <h2 className="text-xl font-bold">{selectedLesson.title}</h2>
+                <p className="mt-2 text-gray-600">
                   {selectedLesson.description}
                 </p>
               </div>
             </>
+          ) : (
+            <div className="aspect-video bg-gray-100 flex items-center justify-center">
+              <p className="text-gray-500">Selecione uma lição para começar</p>
+            </div>
           )}
         </div>
 
-        <div className="border rounded-lg">
+        {/* Sidebar com módulos e lições */}
+        <div className="border rounded-lg overflow-hidden">
           <Accordion type="single" collapsible className="w-full">
-            {course.modules.map((module, moduleIndex) => (
+            {course.modules.map((module, index) => (
               <AccordionItem key={module._id} value={module._id}>
-                <AccordionTrigger className="px-4">
+                <AccordionTrigger className="px-4 py-2 hover:bg-gray-50">
                   <div className="flex items-center gap-2 text-left">
-                    <span className="font-semibold">
-                      Módulo {moduleIndex + 1}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="font-medium">Módulo {index + 1}</span>
+                    <span className="text-sm text-gray-500">
                       {module.title}
                     </span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-1">
-                  {module.lessons.map((lesson) => (
-                    <button
-                      key={lesson._id}
-                      onClick={() => handleLessonSelect(lesson)}
-                      className={`w-full flex items-center gap-2 p-2 text-left text-sm hover:bg-accent hover:text-accent-foreground ${
-                        selectedLesson?._id === lesson._id ? "bg-accent" : ""
-                      }`}
-                    >
-                      {completedLessons.includes(lesson._id) ? (
-                        <CheckCircle className="h-4 w-4 text-emerald-500" />
-                      ) : selectedLesson?._id === lesson._id ? (
-                        <Play className="h-4 w-4" />
-                      ) : (
-                        <Circle className="h-4 w-4" />
-                      )}
-                      {lesson.title}
-                    </button>
-                  ))}
+                <AccordionContent>
+                  <div className="space-y-1 px-2">
+                    {module.lessons.map((lesson) => (
+                      <button
+                        key={lesson._id}
+                        onClick={() => handleLessonSelect(lesson)}
+                        className={`w-full flex items-center gap-2 p-2 text-left rounded hover:bg-gray-100 transition-colors ${
+                          selectedLesson?._id === lesson._id
+                            ? "bg-gray-100"
+                            : ""
+                        }`}
+                      >
+                        {completedLessons.includes(lesson._id) ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : selectedLesson?._id === lesson._id ? (
+                          <Play className="h-4 w-4" />
+                        ) : (
+                          <Circle className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">{lesson.title}</span>
+                      </button>
+                    ))}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
         </div>
       </div>
-
-      {quiz && (
-        <TakeQuizDialog
-          quiz={quiz}
-          open={showQuiz}
-          onOpenChange={setShowQuiz}
-          onComplete={handleQuizComplete}
-        />
-      )}
     </div>
   );
 }

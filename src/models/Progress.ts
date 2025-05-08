@@ -1,15 +1,21 @@
-import mongoose from "mongoose";
+// src/models/Progress.ts
+import mongoose, { Schema, Document, Model } from "mongoose";
 
-const progressSchema = new mongoose.Schema(
+export interface IProgress extends Document {
+  user: mongoose.Types.ObjectId;
+  lesson: mongoose.Types.ObjectId;
+  course: mongoose.Types.ObjectId;
+  progress: number;
+  completed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ProgressSchema: Schema = new Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-    },
-    course: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Course",
       required: true,
     },
     lesson: {
@@ -17,13 +23,21 @@ const progressSchema = new mongoose.Schema(
       ref: "Lesson",
       required: true,
     },
+    course: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+    },
+    progress: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
     completed: {
       type: Boolean,
-      default: true,
-    },
-    lastWatched: {
-      type: Date,
-      default: Date.now,
+      default: false,
     },
   },
   {
@@ -31,8 +45,12 @@ const progressSchema = new mongoose.Schema(
   }
 );
 
-// Índice composto para evitar duplicatas
-progressSchema.index({ user: 1, lesson: 1 }, { unique: true });
+// Índice composto para garantir que cada usuário tenha apenas um registro para cada lição
+ProgressSchema.index({ user: 1, lesson: 1 }, { unique: true });
 
-export default mongoose.models.Progress ||
-  mongoose.model("Progress", progressSchema);
+// Verificar se o modelo já foi compilado para evitar erros em desenvolvimento
+const Progress: Model<IProgress> =
+  mongoose.models.Progress ||
+  mongoose.model<IProgress>("Progress", ProgressSchema);
+
+export default Progress;

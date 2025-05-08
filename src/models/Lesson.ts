@@ -1,37 +1,50 @@
 // src/models/Lesson.ts
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ILesson extends Document {
   title: string;
   description: string;
-  courseId: mongoose.Types.ObjectId;
-  module: mongoose.Types.ObjectId;
-  vimeoId: string;
-  duration: number;
+  videoId: string;
   order: number;
-  isPublished: boolean;
+  duration: number; // duração em segundos
   createdAt: Date;
   updatedAt: Date;
 }
 
 const LessonSchema: Schema = new Schema(
   {
-    title: { type: String, required: true },
-    description: { type: String, default: "" },
-    courseId: { type: Schema.Types.ObjectId, ref: "Course", required: true },
-    module: { type: Schema.Types.ObjectId, ref: "Module", required: true },
-    vimeoId: { type: String, default: null },
-    duration: { type: Number, default: 0 },
-    order: { type: Number, default: 0 },
-    isPublished: { type: Boolean, default: false },
+    title: {
+      type: String,
+      required: [true, "Título é obrigatório"],
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: [true, "Descrição é obrigatória"],
+    },
+    videoId: {
+      type: String,
+      required: [true, "ID do vídeo é obrigatório"],
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+    duration: {
+      type: Number,
+      default: 0,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-// Índices
-LessonSchema.index({ courseId: 1, order: 1 });
-LessonSchema.index({ module: 1, order: 1 });
-LessonSchema.index({ vimeoId: 1 });
+// Índice para ordenação
+LessonSchema.index({ order: 1 });
 
-export default mongoose.models.Lesson || 
-  mongoose.model<ILesson>("Lesson", LessonSchema);
+// Verificar se o modelo já foi compilado para evitar erros em desenvolvimento
+const Lesson: Model<ILesson> =
+  mongoose.models.Lesson || mongoose.model<ILesson>("Lesson", LessonSchema);
+
+export default Lesson;
