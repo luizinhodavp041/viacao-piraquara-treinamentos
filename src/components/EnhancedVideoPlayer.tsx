@@ -552,11 +552,11 @@ export default function EnhancedVideoPlayer({
         )}
 
         {/* Logo */}
-        {logo && (
+        {/* {logo && (
           <div className="absolute top-4 right-4 z-10 opacity-70">
             <img src={logo} alt="Logo" className="h-8" />
           </div>
-        )}
+        )} */}
 
         {/* Aviso de que não é possível pular */}
         {showWarning && (
