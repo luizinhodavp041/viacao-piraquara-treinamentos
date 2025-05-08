@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import VideoPlayer from "./VideoPlayer";
+import EnhancedVideoPlayer from "./EnhancedVideoPlayer";
 
 interface LessonVideoProps {
   lessonId: string;
@@ -10,6 +10,7 @@ interface LessonVideoProps {
   videoId: string;
   title?: string;
   className?: string;
+  disableSkipping?: boolean;
 }
 
 export default function LessonVideo({
@@ -18,6 +19,7 @@ export default function LessonVideo({
   videoId,
   title,
   className = "",
+  disableSkipping = true, // Por padrão, restringir o avanço
 }: LessonVideoProps) {
   const [progress, setProgress] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -46,9 +48,6 @@ export default function LessonVideo({
     try {
       // Salvar progresso final
       await saveProgress(100);
-
-      // Você pode adicionar aqui lógica adicional após a conclusão da aula
-      // por exemplo, ir para a próxima aula, mostrar um quiz, etc.
     } catch (error) {
       console.error("Erro ao registrar conclusão:", error);
     }
@@ -56,24 +55,29 @@ export default function LessonVideo({
 
   // Função para salvar progresso no backend
   const saveProgress = async (progressValue: number) => {
-    const response = await fetch("/api/progress", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        lesson: lessonId,
-        course: courseId,
-        progress: progressValue,
-      }),
-    });
+    try {
+      const response = await fetch("/api/progress", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lesson: lessonId,
+          course: courseId,
+          progress: progressValue,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Falha ao salvar progresso: ${error}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Falha ao salvar progresso: ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error("Erro na requisição de progresso:", error);
+      throw error;
     }
-
-    return response.json();
   };
 
   if (!videoId) {
@@ -88,12 +92,13 @@ export default function LessonVideo({
 
   return (
     <div className={`lesson-video ${className}`}>
-      <VideoPlayer
+      <EnhancedVideoPlayer
         videoId={videoId}
         title={title}
         onComplete={handleComplete}
         onProgress={handleProgress}
-        className="w-full"
+        disableSkipping={disableSkipping} // Passar a restrição de avanço
+        primaryColor="#4f46e5" // Cor personalizada (opcional)
       />
 
       {/* Badge de progresso (opcional) */}

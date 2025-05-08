@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import LessonVideo from "@/components/LessonVideo";
+import EnhancedVideoPlayer from "@/components/EnhancedVideoPlayer"; // Importe o componente
 import Link from "next/link";
 import {
   Accordion,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/accordion";
 import { ChevronLeft, CheckCircle, Circle, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import DiagnosticPanel from "@/components/DiagnosticPanel";
 
 interface Lesson {
   _id: string;
@@ -48,6 +47,9 @@ export default function CoursePage() {
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Estado para armazenar o ID de vídeo atual
+  const [currentVideoId, setCurrentVideoId] = useState<string>("");
+
   useEffect(() => {
     const fetchCourse = async () => {
       try {
@@ -76,6 +78,9 @@ export default function CoursePage() {
           const firstLesson = courseData.modules[0].lessons[0];
           console.log("Primeira lição:", firstLesson);
           setSelectedLesson(firstLesson);
+
+          // Atualizar o ID do vídeo
+          updateVideoId(firstLesson);
         }
 
         // Carregar progresso do curso
@@ -104,9 +109,23 @@ export default function CoursePage() {
     }
   }, [courseId]);
 
+  // Função para extrair o ID do vídeo a partir da lição selecionada
+  const updateVideoId = (lesson: Lesson | null) => {
+    if (!lesson) {
+      setCurrentVideoId("");
+      return;
+    }
+
+    // Ordem de prioridade: videoId > vimeoId > videoPublicId
+    const videoId =
+      lesson.videoId || lesson.vimeoId || lesson.videoPublicId || "";
+    setCurrentVideoId(videoId);
+  };
+
   const handleLessonSelect = (lesson: Lesson) => {
     console.log("Selecionando lição:", lesson);
     setSelectedLesson(lesson);
+    updateVideoId(lesson);
   };
 
   const handleLessonComplete = (lessonId: string) => {
@@ -115,14 +134,19 @@ export default function CoursePage() {
     if (!completedLessons.includes(lessonId)) {
       setCompletedLessons((prev) => [...prev, lessonId]);
     }
-  };
 
-  // Função para identificar o ID do vídeo a ser usado
-  const getVideoId = (lesson: Lesson | null) => {
-    if (!lesson) return "";
-
-    // Ordem de prioridade: videoId > vimeoId > videoPublicId
-    return lesson.videoId || lesson.vimeoId || lesson.videoPublicId || "";
+    // Opcional: salvar o progresso no servidor
+    fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lesson: lessonId,
+        course: courseId,
+        progress: 100,
+      }),
+    }).catch((err) => {
+      console.error("Erro ao salvar progresso:", err);
+    });
   };
 
   if (loading) {
@@ -175,18 +199,8 @@ export default function CoursePage() {
     );
   }
 
-  // Obter o ID do vídeo para a lição selecionada
-  const currentVideoId = getVideoId(selectedLesson);
-
   return (
     <div className="container mx-auto p-6">
-      {/* Painel de diagnóstico - remova na versão final */}
-      {/* <DiagnosticPanel
-        course={course}
-        selectedLesson={selectedLesson}
-        completedLessons={completedLessons}
-      /> */}
-
       <div className="flex items-center gap-4 mb-6">
         <Link href="/home/courses">
           <Button variant="outline" size="icon">
@@ -204,16 +218,26 @@ export default function CoursePage() {
         <div className="space-y-4">
           {selectedLesson ? (
             <>
-              <div className="bg-gray-100 p-2 rounded">
-                {/* <p>Video ID usado: {currentVideoId || "Nenhum"}</p> */}
+              <div className="bg-gray-100 p-2 rounded mb-2">
+                <p className="text-sm text-gray-600">
+                  Video ID: {currentVideoId || "Nenhum"}
+                </p>
               </div>
 
-              <LessonVideo
-                lessonId={selectedLesson._id}
-                courseId={courseId}
+              {/* Usar o EnhancedVideoPlayer em vez do LessonVideo */}
+              <EnhancedVideoPlayer
                 videoId={currentVideoId}
                 title={selectedLesson.title}
+                onComplete={() => {
+                  if (selectedLesson) {
+                    handleLessonComplete(selectedLesson._id);
+                  }
+                }}
+                disableSkipping={true} // Ativar a restrição de avançar
+                primaryColor="#4f46e5" // Customizar a cor primária (opcional)
+                // Você pode adicionar mais propriedades conforme necessário
               />
+
               <div className="mt-4">
                 <h2 className="text-xl font-bold">{selectedLesson.title}</h2>
                 <p className="mt-2 text-gray-600">
